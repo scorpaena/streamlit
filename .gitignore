@@ -1,0 +1,95 @@
+working
+working.md
+.venv/*
+!.venv/,gitkeep
+test/
+test-*.tar.gz
+test-results/
+.gcs.json
+*.py[cod]
+media/
+__pycache__
+*.sqlite3
+# C extensions
+*.so
+uploads
+.DS_Store
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+bin
+var
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+static/
+!**/static/
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+htmlcov
+
+# Translations
+*.mo
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
+# Pycharm/Intellij
+.idea
+
+# Complexity
+output/*.html
+output/*/index.html
+
+# Sphinx
+docs/_build
+
+# Venv/env
+env
+venv
+.minio
+
+*.qt
+.images
+.worker*
+
+# VSCode
+.vscode/*
+.vscode/settings.json
+
+# Pipfile
+Pipfile
+
+livetest.py
+test-images/
+!test-data
+inventory/json_data
+.webapp-defaults.yaml
+.env
+
+__pycache__
+_static
+inventory/fixtures/inventory-defaults.yaml
+.secret
+working.notes.md
+working.py
+
+synthetic-data.py
+_cfg-temp
+.working
+_scripts/_working.py
+
+xunit-reports

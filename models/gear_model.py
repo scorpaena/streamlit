@@ -1,0 +1,132 @@
+import tempfile
+from cadquery import Workplane, Edge, Wire, Vector, exporters
+from math import radians, cos, tan, acos, degrees, sin
+import pyvista as pv
+from stpyvista import stpyvista as stv
+import streamlit as st
+
+
+# ----------------------- Gear Geometry Calculation ----------------------- #
+
+class GearGeometry:
+    """Class to handle the generation of gear geometry."""
+
+    def __init__(self, module, teeth, pressure_angle=20, shift=0, points_per_curve=20):
+        self.module = module
+        self.teeth = teeth
+        self.pressure_angle = radians(pressure_angle)
+        self.shift = shift
+        self.points_per_curve = points_per_curve
+
+        # Calculated radii
+        self.ref_radius = self.module * self.teeth / 2
+        self.base_radius = self.ref_radius * cos(self.pressure_angle)
+        self.top_radius = self.ref_radius + self.module * (1 + self.shift)
+        self.dedendum_radius = self.ref_radius - 1.25 * self.module
+
+    def involute_curve(self, sign=1):
+        """Returns a function for generating involute curve points."""
+
+        def curve_function(radius):
+            alpha = sign * acos(self.base_radius / radius)
+            x = radius * cos(tan(alpha) - alpha)
+            y = radius * sin(tan(alpha) - alpha)
+            return x, y
+
+        return curve_function
+
+    def create_tooth_profile(self):
+        """Creates a single tooth profile."""
+        # Angle calculations
+        angle_inv = tan(self.pressure_angle) - self.pressure_angle
+        angle_tip_inv = tan(acos(self.base_radius / self.top_radius)) - acos(self.base_radius / self.top_radius)
+        a = 90 / self.teeth + degrees(angle_inv)
+        a2 = 90 / self.teeth + degrees(angle_inv) - degrees(angle_tip_inv)
+        a3 = 360 / self.teeth - a
+
+        # Define tooth edges
+        right_edge = (
+            Workplane()
+            .transformed(rotate=(0, 0, a))
+            .parametricCurve(self.involute_curve(sign=-1), start=self.base_radius, stop=self.top_radius,
+                             N=self.points_per_curve, makeWire=False)
+            .val()
+        )
+
+        left_edge = (
+            Workplane()
+            .transformed(rotate=(0, 0, -a))
+            .parametricCurve(self.involute_curve(sign=1), start=self.base_radius, stop=self.top_radius,
+                             N=self.points_per_curve, makeWire=False)
+            .val()
+        )
+
+        # Define other edges
+        top_edge = Edge.makeCircle(self.top_radius, angle1=-a2, angle2=a2)
+        bottom_edge = Edge.makeCircle(self.dedendum_radius, angle1=-a3, angle2=-a)
+        side_edge = Edge.makeLine(Vector(self.dedendum_radius, 0), Vector(self.base_radius, 0))
+        side1 = side_edge.rotate(Vector(0, 0, 0), Vector(0, 0, 1), -a)
+        side2 = side_edge.rotate(Vector(0, 0, 0), Vector(0, 0, 1), -a3)
+
+        # Assemble and return tooth profile
+        tooth_profile = Wire.assembleEdges([left_edge, top_edge, right_edge, side1, bottom_edge, side2])
+        return tooth_profile
+
+    def create_gear_profile(self):
+        """Creates the complete gear profile."""
+        tooth_profile = self.create_tooth_profile()
+        gear_profile = (
+            Workplane()
+            .polarArray(0, 0, 360, self.teeth)
+            .each(lambda loc: tooth_profile.located(loc))
+            .consolidateWires()
+        )
+        return gear_profile.val()
+
+
+# ----------------------- Gear Model Generation ----------------------- #
+
+def generate_gear(module, teeth, center_hole_dia, height):
+    """Generates the complete gear model with specified parameters."""
+    gear_geom = GearGeometry(module, teeth)
+    gear_profile = gear_geom.create_gear_profile()
+
+    # Create gear by duplicating tooth profile
+    gear_blank = Workplane(obj=gear_profile).toPending().extrude(height)
+
+    # Cut center hole
+    gear = gear_blank.faces(">Z").workplane().circle(center_hole_dia / 2).cutThruAll()
+    return gear
+
+
+# ----------------------- Streamlit UI ----------------------- #
+
+# Streamlit UI for parameter inputs
+col1, col2, col3 = st.columns([2, 1, 3])
+with col1:
+    module = st.slider('Module (m)', min_value=1, max_value=5, value=1, step=1)
+    teeth = st.slider('Number of teeth (z)', min_value=17, max_value=30, value=20, step=1)
+    height = st.slider('Gear height (h)', min_value=10, max_value=30, value=20, step=5)
+    center_hole_dia = st.slider('Center hole diameter (d)', min_value=5, max_value=12, value=5, step=1)
+
+
+# Caching and exporting gear model
+@st.cache_data
+def generate_and_export_gear_cached(module, teeth, center_hole_dia, height):
+    gear = generate_gear(module, teeth, center_hole_dia, height)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".stl") as tmpfile:
+        exporters.export(gear, tmpfile.name)
+        return tmpfile.name
+
+
+# ----------------------- Visualization ----------------------- #
+
+stl_path = generate_and_export_gear_cached(module, teeth, center_hole_dia, height)
+plotter = pv.Plotter(window_size=[500, 500])
+mesh = pv.read(stl_path)
+plotter.add_mesh(mesh)
+plotter.view_isometric()
+plotter.background_color = 'black'
+
+with col3:
+    stv(plotter, key=f"gear_{module}_{teeth}_{center_hole_dia}_{height}")
