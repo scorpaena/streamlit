@@ -99,6 +99,22 @@ def generate_gear(module, teeth, center_hole_dia, height):
     return gear
 
 
+def generate_temp_file(model, file_format):
+    """Generates a temporary file with the specified STL or STEP format."""
+    if file_format.lower() == "stl":
+        file_suffix = ".stl"
+        export_type = exporters.ExportTypes.STL
+
+    elif file_format.lower() == "step":
+        file_suffix = ".step"
+        export_type = exporters.ExportTypes.STEP
+    else:
+        raise ValueError(f"Unsupported file format: {file_format}")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tmpfile:
+        exporters.export(model, tmpfile.name, exportType=export_type)
+        return tmpfile.name
+
 # ----------------------- Streamlit UI ----------------------- #
 
 # Streamlit UI for parameter inputs
@@ -112,21 +128,34 @@ with col1:
 
 # Caching and exporting gear model
 @st.cache_data
-def generate_and_export_gear_cached(module, teeth, center_hole_dia, height):
+def generate_and_export_gear_cached(module, teeth, center_hole_dia, height, file_format):
     gear = generate_gear(module, teeth, center_hole_dia, height)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".stl") as tmpfile:
-        exporters.export(gear, tmpfile.name)
-        return tmpfile.name
-
+    return generate_temp_file(gear, file_format)
 
 # ----------------------- Visualization ----------------------- #
 
-stl_path = generate_and_export_gear_cached(module, teeth, center_hole_dia, height)
+file_path_stl = generate_and_export_gear_cached(module, teeth, center_hole_dia, height, "stl")
+
+mesh = pv.read(file_path_stl)
+
 plotter = pv.Plotter(window_size=[500, 500])
-mesh = pv.read(stl_path)
 plotter.add_mesh(mesh)
 plotter.view_isometric()
 plotter.background_color = 'black'
 
 with col3:
     stv(plotter, key=f"gear_{module}_{teeth}_{center_hole_dia}_{height}")
+    with open(file_path_stl, 'rb') as stl_file:
+        st.download_button(
+            label="Download STL File",
+            data=stl_file,
+            file_name="gear.stl",
+            mime="application/vnd.ms-pki.stl",
+        )
+    with open(generate_and_export_gear_cached(module, teeth, center_hole_dia, height, "step"), 'rb') as step_file:
+        st.download_button(
+            label=f"Download STEP File",
+            data=step_file,
+            file_name=f"gear.step",
+            mime="application/step",
+        )
