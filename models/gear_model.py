@@ -141,7 +141,7 @@ mesh = pv.read(file_path_stl)
 plotter = pv.Plotter(window_size=[500, 500])
 plotter.add_mesh(mesh)
 plotter.view_isometric()
-plotter.background_color = 'black'
+plotter.set_background("#0e1117")
 
 with col3:
     stv(plotter, key=f"gear_{module}_{teeth}_{center_hole_dia}_{height}")
