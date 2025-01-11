@@ -1,4 +1,5 @@
 import tempfile
+import os
 from cadquery import Workplane, Edge, Wire, Vector, exporters
 from math import radians, cos, tan, acos, degrees, sin
 import pyvista as pv
@@ -137,6 +138,9 @@ def generate_and_export_gear_cached(module, teeth, center_hole_dia, height, file
 # ----------------------- Visualization ----------------------- #
 
 file_path_stl = generate_and_export_gear_cached(module, teeth, center_hole_dia, height, "stl")
+
+if os.getenv("OS_TYPE") != "windows":
+    pv.start_xvfb()
 
 mesh = pv.read(file_path_stl)
 
