@@ -6,4 +6,7 @@ libxext6
 libxfixes3
 libgl1-mesa-dri
 libxcb-xinerama0
+libxcb-render0
+libxcb-shape0
+libx11-xcb-dev
 xvfb
