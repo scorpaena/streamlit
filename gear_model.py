@@ -118,8 +118,10 @@ def generate_temp_file(model, file_format):
 # ----------------------- Streamlit UI ----------------------- #
 
 # Streamlit UI for parameter inputs
-col1, col2, col3 = st.columns([2, 1, 3])
+st.set_page_config(layout='wide')
+col1, col2, col3 = st.columns([3, 0.5, 4])
 with col1:
+    st.subheader("Gear Model Generator")
     module = st.slider('Module (m)', min_value=1, max_value=5, value=1, step=1)
     teeth = st.slider('Number of teeth (z)', min_value=17, max_value=30, value=20, step=1)
     height = st.slider('Gear height (h)', min_value=10, max_value=30, value=20, step=5)
