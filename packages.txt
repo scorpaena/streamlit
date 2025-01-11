@@ -5,4 +5,5 @@ libxrender1
 libxext6
 libxfixes3
 libgl1-mesa-dri
+libxcb-xinerama0
 xvfb
