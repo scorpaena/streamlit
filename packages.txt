@@ -1,3 +1,4 @@
 libgl1
 libxrender1
 xvfb
+python-vtk
