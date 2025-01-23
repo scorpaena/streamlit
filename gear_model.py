@@ -96,8 +96,16 @@ def generate_gear(module, teeth, center_hole_dia, height):
     gear_blank = Workplane(obj=gear_profile).toPending().extrude(height)
 
     # Cut center hole
-    gear = gear_blank.faces(">Z").workplane().circle(center_hole_dia / 2).cutThruAll()
-    return gear
+    gear_with_hole = gear_blank.faces(">Z").workplane().circle(center_hole_dia / 2).cutThruAll()
+
+    key_slot = (
+        Workplane("XY")
+        .rect(center_hole_dia * 0.25, center_hole_dia * 0.25, centered=(True, True))  # Create a rectangular key slot profile
+        .extrude(height)  # Extrude the slot through the gear height
+        .translate((0, center_hole_dia / 2, 0))  # Position the slot on the edge of the center hole
+    )
+
+    return gear_with_hole.cut(key_slot)
 
 
 def generate_temp_file(model, file_format):
