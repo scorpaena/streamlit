@@ -1,0 +1,11 @@
+services:
+  streamlit_gear_app:
+    build: .
+    container_name: streamlit_gear_app
+    ports:
+      - "8501:8501"
+    environment:
+     - OS_TYPE=linux
+    volumes:
+     - .:/app
+    restart: always

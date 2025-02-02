@@ -1,12 +1,11 @@
-FROM python:3.10-slim-bullseye
+FROM python:3.10
 
-WORKDIR /app
 COPY . /app
-RUN apt-get update && apt-get -y install < packages.txt
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y libgl1 libxrender1 xvfb python3-vtk9 && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -r requirements.txt
-
-ENV OS_TYPE=linux
 
 EXPOSE 8501
 
