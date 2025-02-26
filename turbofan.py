@@ -470,11 +470,20 @@ class AirfoilSection:
 
 
 class Turbofan:
-    def __init__(self, sections: list, vanes_count: int, center_hole_diameter: int = None, hub_diameter: int = 2):
+    def __init__(self, sections: list, vanes_count: int, center_hole_diameter: int, hub_diameter: int):
         self.sections = sections
         self.vanes_count = vanes_count
         self.center_hole_diameter = center_hole_diameter
         self.hub_diameter = hub_diameter
+
+    @cached_property
+    def _vane_trailing_edge_max_coordinate(self):
+        edges = self.sections[0].build_sketch().moved(self.sections[0].location).edges()
+        vertices = [v for e in edges for v in e.Vertices()]
+        vertex_coords = [v.toTuple() for v in vertices]
+        trailing_edge_tip_coords = max(vertex_coords, key=lambda v: v[0])
+        return max(trailing_edge_tip_coords)
+
 
     @cache
     def build_vane(self):
@@ -491,9 +500,11 @@ class Turbofan:
 
     @cache
     def build_turbofan(self):
-        vanes = [self.build_vane().translate((0, 0, self.hub_diameter/2)).rotate((0, 0, 0), (0, 1, 0), i * 360/self.vanes_count) for i in range(self.vanes_count)]
-        hub = cq.Workplane("XZ").circle(self.hub_diameter/2).extrude(self.hub_height).faces("XZ").workplane().circle(self.hub_diameter/2).extrude(-self.hub_height/2)#.edges("|X").fillet(0.2)
-        return cq.Compound.makeCompound([hub.val()] + [vane.val() for vane in vanes])
+        vane_offset = ((self.hub_diameter / 2)**2 - self._vane_trailing_edge_max_coordinate**2)**0.5  # otherwise, there will be a gap btw hub and vane root section
+        vanes = [self.build_vane().translate((0, 0, vane_offset)).rotate((0, 0, 0), (0, 1, 0), i * 360 / self.vanes_count) for i in range(self.vanes_count)]
+        hub = cq.Workplane("XZ").circle(self.hub_diameter/2).extrude(self.hub_height).faces("XZ").workplane().circle(self.hub_diameter/2).extrude(-self.hub_height/2).faces("+Y").edges().fillet(self.hub_height*0.25)
+        hub_with_hole = hub.faces("XZ").circle(self.center_hole_diameter/2).cutThruAll()
+        return cq.Compound.makeCompound([hub_with_hole.val()] + [vane.val() for vane in vanes])
 
 
 naca4421 = sc.load_spline('spl_QBhalXE844DC')
@@ -533,13 +544,20 @@ def generate_and_export_turbofan_cached(
     file_format,
     tessellation,
     vanes_count,
+    hub_diameter,
+    center_hole_diameter
 ):
     sections = [
         AirfoilSection(_root_curve, root_chord_ratio, 0, root_twist),
         AirfoilSection(_middle_curve, middle_chord_ratio, middle_offset_distance, middle_twist),
         AirfoilSection(_tip_curve, tip_chord_ratio, middle_offset_distance + tip_offset_distance, tip_twist)
     ]
-    turbofan = Turbofan(sections=sections, vanes_count=vanes_count).build_turbofan()
+    turbofan = Turbofan(
+        sections=sections,
+        vanes_count=vanes_count,
+        center_hole_diameter=center_hole_diameter,
+        hub_diameter=hub_diameter
+    ).build_turbofan()
     return generate_temp_file(turbofan, file_format, tessellation)
 
 
@@ -571,18 +589,20 @@ with col1:
     tip_curve_id = REFINED_AIRFOILS_COLLECTION[family_tip][selected_airfoil_tip]
 
 with col2:
-    blades_count = st.slider('Blades count (items)', min_value=2, max_value=10, value=2, step=1)
     tessellation_value = st.select_slider('Surface quality', options=[t.name.lower() for t in Tessellation])
-    root_twist_angle = st.slider('Root section twist angle (degree)', min_value=-90, max_value=90, value=-20, step=1)
-    middle_twist_angle = st.slider('Middle section twist angle (degree)', min_value=-90, max_value=90, value=-12, step=1)
-    tip_twist_angle = st.slider('Tip section twist angle (degree)', min_value=-90, max_value=90, value=-3, step=1)
+    blades_count = st.slider('Blades count (items)', min_value=2, max_value=10, value=2, step=1)
+    hub_dia = st.slider('Turbofan hub diameter', min_value=2.0, max_value=5.0, value=2.0, step=0.25)
+    center_hole_dia = st.slider('Turbofan center hole diameter', min_value=0.5, max_value=hub_dia-0.5, value=1.0, step=0.25)
+    root_twist_angle = st.slider('Root section twist angle (degree)', min_value=-90, max_value=0, value=-20, step=1)
+    middle_twist_angle = st.slider('Middle section twist angle (degree)', min_value=-90, max_value=0, value=-12, step=1)
+    tip_twist_angle = st.slider('Tip section twist angle (degree)', min_value=-90, max_value=0, value=-3, step=1)
 
     root_chord = st.slider('Root section chord (ratio)', min_value=0.1, max_value=2.0, value=0.6, step=0.1)
     middle_chord = st.slider('Middle section chord (ratio)', min_value=0.1, max_value=2.0, value=1.0, step=0.1)
     tip_chord = st.slider('Tip section chord (ratio)', min_value=0.1, max_value=2.0, value=0.3, step=0.1)
 
-    middle_offset = st.slider('Middle section offset (mm)', min_value=1, max_value=10, value=2, step=1)
-    tip_offset = st.slider('Tip section offset (degree)', min_value=1, max_value=10, value=3, step=1)
+    middle_offset = st.slider('Middle section offset', min_value=1, max_value=10, value=2, step=1)
+    tip_offset = st.slider('Tip section offset', min_value=1, max_value=10, value=3, step=1)
 
 
 # ----------------------- Visualization ----------------------- #
@@ -604,6 +624,8 @@ file_path_stl = generate_and_export_turbofan_cached(
     file_format="stl",
     tessellation=tessellation_value,
     vanes_count=blades_count,
+    hub_diameter=hub_dia,
+    center_hole_diameter=center_hole_dia,
 )
 
 
@@ -625,6 +647,8 @@ file_path_step = generate_and_export_turbofan_cached(
     file_format="step",
     tessellation=tessellation_value,
     vanes_count=blades_count,
+    hub_diameter=hub_dia,
+    center_hole_diameter=center_hole_dia,
 )
 
 if os.getenv("OS_TYPE") != "windows":
