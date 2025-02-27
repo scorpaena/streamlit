@@ -404,8 +404,8 @@ def get_refined_airfoils_collection(data = None, data_file = None):
     curves_dict = {}
     for category, airfoils in data.items():
         for airfoil_name, airfoil_data in airfoils.items():
-            if "curves" in airfoil_data:
-                curves_dict[airfoil_name] = airfoil_data["curves"]
+            if "spline" in airfoil_data:
+                curves_dict[airfoil_name] = airfoil_data["spline"]
 
     return curves_dict
 
@@ -500,16 +500,24 @@ class Turbofan:
 
     @cache
     def build_turbofan(self):
-        vane_offset = ((self.hub_diameter / 2)**2 - self._vane_trailing_edge_max_coordinate**2)**0.5  # otherwise, there will be a gap btw hub and vane root section
-        vanes = [self.build_vane().translate((0, 0, vane_offset)).rotate((0, 0, 0), (0, 1, 0), i * 360 / self.vanes_count) for i in range(self.vanes_count)]
-        hub = cq.Workplane("XZ").circle(self.hub_diameter/2).extrude(self.hub_height).faces("XZ").workplane().circle(self.hub_diameter/2).extrude(-self.hub_height/2).faces("+Y").edges().fillet(self.hub_height*0.25)
-        hub_with_hole = hub.faces("XZ").circle(self.center_hole_diameter/2).cutThruAll()
-        return cq.Compound.makeCompound([hub_with_hole.val()] + [vane.val() for vane in vanes])
+        vane_offset = ((self.hub_diameter / 2) ** 2 - self._vane_trailing_edge_max_coordinate ** 2) ** 0.5
+        vanes = [
+            self.build_vane().translate((0, 0, vane_offset)).rotate((0, 0, 0), (0, 1, 0), i * 360 / self.vanes_count)
+            for i in range(self.vanes_count)]
+
+        hub = cq.Workplane("XZ").circle(self.hub_diameter / 2).extrude(self.hub_height)
+        hub = hub.faces("XZ").workplane().circle(self.hub_diameter / 2).extrude(-self.hub_height / 2)
+        hub = hub.faces("+Y").edges().fillet(self.hub_height * 0.25)
+
+        for vane in vanes:
+            hub = hub.union(vane)
+
+        return hub.faces("XZ").circle(self.center_hole_diameter / 2).cutThruAll()
 
 
-naca4421 = sc.load_spline('spl_QBhalXE844DC')
-naca4418 = sc.load_spline('spl_4OfePVC7ztg0')
-naca4412 = sc.load_spline('spl_oWHqlVtu67as')
+# naca4421 = sc.load_spline('spl_QBhalXE844DC')
+# naca4418 = sc.load_spline('spl_4OfePVC7ztg0')
+# naca4412 = sc.load_spline('spl_oWHqlVtu67as')
 
 
 def generate_temp_file(model, file_format, tessellation):
@@ -570,23 +578,17 @@ with col1:
     st.header("Turbofan Model Generator")
     st.subheader("Root airfoil profile selection:")
     family_root = st.selectbox("Choose a profile family:", list(REFINED_AIRFOILS_COLLECTION.keys()), key="root_family")
-    airfoils_root = list(REFINED_AIRFOILS_COLLECTION[family_root].keys())
-    selected_airfoil_root = st.selectbox("Choose an airfoil:", airfoils_root, key="root_airfoil")
-    root_curve_id = REFINED_AIRFOILS_COLLECTION[family_root][selected_airfoil_root]
+    root_curve_id = REFINED_AIRFOILS_COLLECTION[family_root]
     st.divider()
 
     st.subheader("Middle airfoil profile selection:")
     family_middle = st.selectbox("Choose a profile family:", list(REFINED_AIRFOILS_COLLECTION.keys()), key="middle_family")
-    airfoils_middle = list(REFINED_AIRFOILS_COLLECTION[family_middle].keys())
-    selected_airfoil_middle = st.selectbox("Choose an airfoil:", airfoils_middle, key="middle_airfoil")
-    middle_curve_id = REFINED_AIRFOILS_COLLECTION[family_middle][selected_airfoil_middle]
+    middle_curve_id = REFINED_AIRFOILS_COLLECTION[family_middle]
     st.divider()
 
     st.subheader("Tip airfoil profile selection:")
     family_tip = st.selectbox("Choose a profile family:", list(REFINED_AIRFOILS_COLLECTION.keys()), key="tip_family")
-    airfoils_tip = list(REFINED_AIRFOILS_COLLECTION[family_tip].keys())
-    selected_airfoil_tip = st.selectbox("Choose an airfoil:", airfoils_tip, key="tip_airfoil")
-    tip_curve_id = REFINED_AIRFOILS_COLLECTION[family_tip][selected_airfoil_tip]
+    tip_curve_id = REFINED_AIRFOILS_COLLECTION[family_tip]
 
 with col2:
     tessellation_value = st.select_slider('Surface quality', options=[t.name.lower() for t in Tessellation])
@@ -607,12 +609,12 @@ with col2:
 
 # ----------------------- Visualization ----------------------- #
 file_path_stl = generate_and_export_turbofan_cached(
-    _root_curve=naca4421,
-    _middle_curve=naca4418,
-    _tip_curve=naca4412,
-    # _root_curve=root_curve_id,
-    # _middle_curve=middle_curve_id,
-    # _tip_curve=tip_curve_id,
+    # _root_curve=naca4421,
+    # _middle_curve=naca4418,
+    # _tip_curve=naca4412,
+    _root_curve=root_curve_id,
+    _middle_curve=middle_curve_id,
+    _tip_curve=tip_curve_id,
     root_chord_ratio=root_chord,
     root_twist=root_twist_angle,
     middle_chord_ratio=middle_chord,
@@ -630,12 +632,12 @@ file_path_stl = generate_and_export_turbofan_cached(
 
 
 file_path_step = generate_and_export_turbofan_cached(
-    _root_curve=naca4421,
-    _middle_curve=naca4418,
-    _tip_curve=naca4412,
-    # _root_curve=root_curve_id,
-    # _middle_curve=middle_curve_id,
-    # _tip_curve=tip_curve_id,
+    # _root_curve=naca4421,
+    # _middle_curve=naca4418,
+    # _tip_curve=naca4412,
+    _root_curve=root_curve_id,
+    _middle_curve=middle_curve_id,
+    _tip_curve=tip_curve_id,
     root_chord_ratio=root_chord,
     root_twist=root_twist_angle,
     middle_chord_ratio=middle_chord,
